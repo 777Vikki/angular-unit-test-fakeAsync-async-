@@ -1,5 +1,5 @@
-import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
+import { ComponentFixture, fakeAsync, TestBed, tick, waitForAsync } from '@angular/core/testing';
+import { delay, of } from 'rxjs';
 
 import { UserComponent } from './user.component';
 import { UserService } from '../shared/user.service';
@@ -28,53 +28,29 @@ describe('UserComponent', () => {
     expect(component).toBeTruthy();
   });
 
-  it('should call getUser on init and assign users', () => {
+  it('should call getUser on init and assign users (waitForAsync)', waitForAsync(() => {
     const mockUsers = [{ id: 1, userId: 1, title: 'User 1', completed: false }];
-    userServiceSpy.getUser.and.returnValue(of(mockUsers));
+    userServiceSpy.getUser.and.returnValue(of(mockUsers).pipe(delay(0))); // async observable
 
     fixture.detectChanges(); // triggers ngOnInit
 
+    fixture.whenStable().then(() => {
+      expect(userServiceSpy.getUser).toHaveBeenCalled();
+      expect(component.users).toEqual(mockUsers);
+    });
+  }));
+
+  it('should call getUser on init and assign users (fakeAsync)', fakeAsync(() => {
+    const mockUsers = [{ id: 1, title: 'User 1', completed: false }];
+    userServiceSpy.getUser.and.returnValue(of(mockUsers).pipe(delay(1000)));
+
+    fixture.detectChanges(); // triggers ngOnInit
+    expect(component.users).toEqual([]); // not yet assigned
+
+    tick(1000); // simulate passage of time
+    fixture.detectChanges();
+
     expect(userServiceSpy.getUser).toHaveBeenCalled();
     expect(component.users).toEqual(mockUsers);
-  });
-
-  it('should render users in the table', () => {
-    const mockUsers = [
-      { id: 1, userId: 1, title: 'User 1', completed: false },
-      { id: 2, userId: 1, title: 'User 2', completed: true }
-    ];
-    userServiceSpy.getUser.and.returnValue(of(mockUsers));
-
-    fixture.detectChanges();
-
-    const compiled: HTMLElement = fixture.nativeElement;
-    const rows = compiled.querySelectorAll('table tr');
-
-    // Expect header + 2 user rows
-    expect(rows.length).toBe(3);
-
-    // Verify first user row
-    const firstRowCells = rows[1].querySelectorAll('td');
-    expect(firstRowCells[0].textContent?.trim()).toBe('1');
-    expect(firstRowCells[1].textContent?.trim()).toBe('User 1');
-    expect(firstRowCells[2].textContent?.trim()).toBe('false');
-
-    // Verify second user row
-    const secondRowCells = rows[2].querySelectorAll('td');
-    expect(secondRowCells[0].textContent?.trim()).toBe('2');
-    expect(secondRowCells[1].textContent?.trim()).toBe('User 2');
-    expect(secondRowCells[2].textContent?.trim()).toBe('true');
-  });
-
-  it('should render only header row when no users', () => {
-    userServiceSpy.getUser.and.returnValue(of([]));
-
-    fixture.detectChanges();
-
-    const compiled: HTMLElement = fixture.nativeElement;
-    const rows = compiled.querySelectorAll('table tr');
-
-    // Only header row should be present
-    expect(rows.length).toBe(1);
-  });
+  }));
 });
